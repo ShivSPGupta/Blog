@@ -7,8 +7,6 @@ function mapPostForDb(postData) {
   return {
     id: postData.id,
     author_id: postData.authorId,
-    author_email: postData.authorEmail,
-    author_display_name: postData.authorDisplayName,
     title: postData.title,
     excerpt: postData.excerpt,
     content: postData.content,

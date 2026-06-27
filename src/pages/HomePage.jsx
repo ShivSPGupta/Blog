@@ -11,7 +11,7 @@ import { useBlogPosts } from '../hooks/useBlogPosts';
 
 const HomePage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const { posts, isLoading } = useBlogPosts();
+  const { posts, isLoading, error } = useBlogPosts();
   const searchQuery = searchParams.get('search') || '';
 
   const filteredPosts = useMemo(() => {
@@ -44,6 +44,17 @@ const HomePage = () => {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="animate-pulse text-xl">Loading posts...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6">
+        <h1 className="text-2xl font-bold mb-2">Unable to load posts</h1>
+        <p className="text-muted-foreground">
+          {error.message || 'The blog could not reach Supabase. Check your environment variables and database access.'}
+        </p>
       </div>
     );
   }

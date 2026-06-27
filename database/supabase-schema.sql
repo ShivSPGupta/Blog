@@ -49,6 +49,71 @@ as $$
   );
 $$;
 
+create or replace function public.sync_profile_email()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, auth
+as $$
+declare
+  auth_email text;
+begin
+  select email
+  into auth_email
+  from auth.users
+  where id = new.id;
+
+  new.email := auth_email;
+  new.updated_at := now();
+
+  return new;
+end;
+$$;
+
+create or replace function public.sync_post_author_metadata()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, auth
+as $$
+declare
+  auth_email text;
+  profile_display_name text;
+begin
+  select email
+  into auth_email
+  from auth.users
+  where id = new.author_id;
+
+  select display_name
+  into profile_display_name
+  from public.profiles
+  where id = new.author_id;
+
+  new.author_email := auth_email;
+  new.author_display_name := coalesce(
+    nullif(profile_display_name, ''),
+    nullif(split_part(auth_email, '@', 1), ''),
+    'Author'
+  );
+  new.updated_at := now();
+
+  return new;
+end;
+$$;
+
+drop trigger if exists profiles_sync_email on public.profiles;
+create trigger profiles_sync_email
+before insert or update on public.profiles
+for each row
+execute function public.sync_profile_email();
+
+drop trigger if exists posts_sync_author_metadata on public.posts;
+create trigger posts_sync_author_metadata
+before insert or update on public.posts
+for each row
+execute function public.sync_post_author_metadata();
+
 grant usage on schema public to anon, authenticated;
 grant select on table public.profiles to anon, authenticated;
 grant insert, update on table public.profiles to authenticated;
@@ -105,3 +170,21 @@ on public.posts
 for delete
 to authenticated
 using (auth.uid() = author_id or public.is_admin(auth.uid()));
+
+update public.profiles
+set email = auth_users.email,
+    updated_at = now()
+from auth.users as auth_users
+where auth_users.id = public.profiles.id;
+
+update public.posts
+set author_email = auth_users.email,
+    author_display_name = coalesce(
+      nullif(public.profiles.display_name, ''),
+      nullif(split_part(auth_users.email, '@', 1), ''),
+      'Author'
+    ),
+    updated_at = now()
+from auth.users as auth_users
+left join public.profiles on public.profiles.id = public.posts.author_id
+where auth_users.id = public.posts.author_id;

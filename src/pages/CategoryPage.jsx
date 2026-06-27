@@ -7,7 +7,7 @@ import { useBlogPosts } from '../hooks/useBlogPosts';
 
 const CategoryPage = () => {
   const { category } = useParams();
-  const { posts, isLoading } = useBlogPosts();
+  const { posts, isLoading, error } = useBlogPosts();
   const categoryPosts = useMemo(() => {
     if (!category) {
       return [];
@@ -20,6 +20,17 @@ const CategoryPage = () => {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="animate-pulse text-xl">Loading posts...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6">
+        <h1 className="text-2xl font-bold mb-2">Unable to load this category</h1>
+        <p className="text-muted-foreground">
+          {error.message || 'The blog could not reach Supabase. Check your environment variables and database access.'}
+        </p>
       </div>
     );
   }

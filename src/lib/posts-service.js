@@ -103,10 +103,7 @@ export async function fetchPosts() {
     };
   } catch (error) {
     console.error('Error loading posts from Supabase:', error);
-    return {
-      posts: readLocalPosts(),
-      source: 'local',
-    };
+    throw error;
   }
 }
 
@@ -114,12 +111,8 @@ export async function createPost(postData, currentPosts = []) {
   const normalized = normalizePost(postData);
 
   if (apiConfig.enabled) {
-    try {
-      const post = await createPostOnApi(normalized);
-      return { post, source: 'supabase' };
-    } catch (error) {
-      console.error('Error creating post through Supabase:', error);
-    }
+    const post = await createPostOnApi(normalized);
+    return { post, source: 'supabase' };
   }
 
   writeLocalPosts([normalized, ...currentPosts]);
@@ -148,12 +141,8 @@ export async function updatePost(id, postData, currentPosts = []) {
   );
 
   if (apiConfig.enabled) {
-    try {
-      const post = await updatePostOnApi(id, normalized);
-      return { post, source: 'supabase' };
-    } catch (error) {
-      console.error('Error updating post through Supabase:', error);
-    }
+    const post = await updatePostOnApi(id, normalized);
+    return { post, source: 'supabase' };
   }
 
   writeLocalPosts(currentPosts.map((post) => (post.id === id ? normalized : post)));
