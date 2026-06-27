@@ -1,0 +1,7 @@
+Options -MultiViews
+RewriteEngine On
+
+# If the requested file or folder does not exist, serve the Vite SPA entrypoint.
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ index.html [L]

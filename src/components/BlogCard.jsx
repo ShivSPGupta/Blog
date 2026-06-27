@@ -1,10 +1,11 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, Clock, Tag } from 'lucide-react';
+import { Calendar, Clock, Tag, User } from 'lucide-react';
 import { formatDate } from '../lib/utils';
 
 const BlogCard = ({ post }) => {
-  const { id, title, excerpt, coverImage, category, createdAt, readTime } = post;
+  const { id, title, excerpt, coverImage, category, createdAt, readTime, authorDisplayName, authorEmail } = post;
+  const authorName = authorDisplayName || authorEmail?.split('@')[0] || 'Author';
 
   return (
     <article className="group overflow-hidden rounded-lg border border-[hsl(var(--border))] bg-card shadow-sm hover:shadow-md transition-all duration-300">
@@ -27,6 +28,11 @@ const BlogCard = ({ post }) => {
 
         <Link to={`/post/${id}`}><h2 className="text-xl font-bold leading-tight mb-2 group-hover:text-primary transition-colors">{title}</h2></Link>
         <p className="text-muted-foreground mb-4 line-clamp-2">{excerpt}</p>
+
+        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
+          <User size={14} />
+          <span>{authorName}</span>
+        </div>
 
         <div className="flex items-center justify-between">
           <Link to={`/category/${category}`} className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"><Tag size={14} />{category}</Link>

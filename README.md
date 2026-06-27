@@ -1,16 +1,68 @@
-# React + Vite
+# Blog project
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This app runs in local-first mode by default, so you can test it immediately without setting up MySQL or the API.
 
-Currently, two official plugins are available:
+## Env files
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- `.env.local` for local testing
+- `.env.production` for Supabase deployment
 
-## React Compiler
+## Local run
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+1. Create a `.env.local` file from `.env.local.example`.
+2. Leave `VITE_BLOG_DATA_MODE=local`.
+3. Run:
 
-## Expanding the ESLint configuration
+```bash
+npm run dev
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+That uses the browser local store/sample data path.
+
+## Supabase run
+
+1. Create a Supabase project.
+2. Create at least one user from the app or the Supabase Auth panel.
+3. In the Supabase SQL editor, run [supabase-schema.sql](/E:/Capstone%20Project/blog/database/supabase-schema.sql) and then [supabase-seed.sql](/E:/Capstone%20Project/blog/database/supabase-seed.sql).
+4. Create `.env.local` or `.env.production` from `.env.production.example`.
+5. Set `VITE_BLOG_DATA_MODE=supabase`.
+6. Fill in `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
+7. Start the frontend:
+
+```bash
+npm run dev
+```
+
+This mode talks directly to Supabase from the frontend.
+Posts stay publicly readable, but create/edit/delete is now limited to the signed-in author who owns the row.
+
+## Deployment
+
+### Static frontend on shared hosting
+
+This project can be deployed as a static SPA if you keep `VITE_BLOG_DATA_MODE=local`.
+
+1. Run `npm run build`.
+2. Upload the contents of `dist/` to `public_html/`.
+3. Keep `public/.htaccess` in place so React Router routes like `/post/:id` reload correctly.
+
+That mode is the simplest way to ship the project on Hosting without a Node backend.
+
+### Full blog with Supabase
+
+If you want the Supabase-backed version in production:
+
+1. Create your Supabase project and at least one auth user.
+2. Run [supabase-schema.sql](/E:/Capstone%20Project/blog/database/supabase-schema.sql).
+3. Optionally run [supabase-seed.sql](/E:/Capstone%20Project/blog/database/supabase-seed.sql) for starter content owned by the first user in `auth.users`.
+4. Set `VITE_BLOG_DATA_MODE=supabase`.
+5. Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in `.env.production`.
+6. Build and deploy the frontend with `npm run build`.
+
+Supabase removes the need for a separate Node backend for this project.
+
+## Scripts
+
+- `npm run dev` - frontend only
+- `npm run build` - production frontend build
+- `npm run lint` - ESLint

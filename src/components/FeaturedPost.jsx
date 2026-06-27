@@ -1,11 +1,12 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, Clock, Tag } from 'lucide-react';
+import { Calendar, Clock, Tag, User } from 'lucide-react';
 import { Button } from './ui/button';
 import { formatDate } from '../lib/utils';
 
 const FeaturedPost = ({ post }) => {
-  const { id, title, excerpt, coverImage, category, createdAt, readTime } = post;
+  const { id, title, excerpt, coverImage, category, createdAt, readTime, authorDisplayName, authorEmail } = post;
+  const authorName = authorDisplayName || authorEmail?.split('@')[0] || 'Author';
 
   return (
     <div className="relative overflow-hidden rounded-xl shadow-lg mb-12">
@@ -29,6 +30,11 @@ const FeaturedPost = ({ post }) => {
         </Link>
 
         <p className="text-white mb-6 max-w-3xl">{excerpt}</p>
+
+        <div className="flex items-center gap-2 text-sm text-white/90 mb-6">
+          <User size={14} className="text-primary" />
+          <span>{authorName}</span>
+        </div>
 
         <Link to={`/post/${id}`}>
           <Button size="lg" className="bg-primary hover:bg-blue-900 text-primary-foreground">Read Article</Button>

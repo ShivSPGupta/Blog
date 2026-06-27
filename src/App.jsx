@@ -7,6 +7,7 @@ import BlogPostPage from './pages/BlogPostPage';
 import CategoryPage from './pages/CategoryPage';
 import CreatePostPage from './pages/CreatePostPage';
 import EditPostPage from './pages/EditPostPage';
+import AuthPage from './pages/AuthPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 function App() {
@@ -17,6 +18,7 @@ function App() {
           <Route index element={<HomePage />} />
           <Route path="post/:id" element={<BlogPostPage />} />
           <Route path="category/:category" element={<CategoryPage />} />
+          <Route path="auth" element={<AuthPage />} />
           <Route path="create" element={<CreatePostPage />} />
           <Route path="edit/:id" element={<EditPostPage />} />
           <Route path="*" element={<NotFoundPage />} />

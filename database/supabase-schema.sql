@@ -1,0 +1,107 @@
+-- Auth-based setup:
+-- posts are publicly readable, but create/update/delete is limited to the user
+-- who owns the row via author_id.
+
+create table if not exists public.profiles (
+  id uuid primary key references auth.users (id) on delete cascade,
+  email text,
+  display_name text not null,
+  role text not null default 'author' check (role in ('author', 'admin')),
+  avatar_url text,
+  bio text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.posts (
+  id text primary key,
+  author_id uuid not null references auth.users (id) on delete cascade,
+  author_email text,
+  author_display_name text,
+  title text not null,
+  excerpt text not null,
+  content text not null,
+  category text not null,
+  cover_image text,
+  read_time integer not null default 5,
+  status text not null default 'draft' check (status in ('draft', 'published')),
+  slug text not null unique,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  published_at timestamptz
+);
+
+alter table public.profiles enable row level security;
+alter table public.posts enable row level security;
+
+create or replace function public.is_admin(user_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.profiles
+    where id = user_id
+      and role = 'admin'
+  );
+$$;
+
+grant usage on schema public to anon, authenticated;
+grant select on table public.profiles to anon, authenticated;
+grant insert, update on table public.profiles to authenticated;
+grant select on table public.posts to anon, authenticated;
+grant insert, update, delete on table public.posts to authenticated;
+
+create policy "public can read profiles"
+on public.profiles
+for select
+to anon, authenticated
+using (true);
+
+create policy "authenticated users can insert own profile"
+on public.profiles
+for insert
+to authenticated
+with check (auth.uid() = id and coalesce(role, 'author') = 'author');
+
+create policy "users can update own profile"
+on public.profiles
+for update
+to authenticated
+using (auth.uid() = id)
+with check (
+  auth.uid() = id
+  and role = (
+    select current_profile.role
+    from public.profiles as current_profile
+    where current_profile.id = auth.uid()
+  )
+);
+
+create policy "public can read posts"
+on public.posts
+for select
+to anon, authenticated
+using (true);
+
+create policy "authenticated users can insert own posts"
+on public.posts
+for insert
+to authenticated
+with check (auth.uid() = author_id);
+
+create policy "authors can update own posts"
+on public.posts
+for update
+to authenticated
+using (auth.uid() = author_id or public.is_admin(auth.uid()))
+with check (auth.uid() = author_id or public.is_admin(auth.uid()));
+
+create policy "authors can delete own posts"
+on public.posts
+for delete
+to authenticated
+using (auth.uid() = author_id or public.is_admin(auth.uid()));

@@ -1,61 +1,122 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.trim().replace(/\/$/, '');
+import { getSupabaseClient, getSupabaseConfig } from './supabase-client';
 
-function isConfigured() {
-  return Boolean(API_BASE_URL);
+const DATA_MODE = (import.meta.env.VITE_BLOG_DATA_MODE || 'local').trim().toLowerCase();
+const POSTS_TABLE = 'posts';
+
+function mapPostForDb(postData) {
+  return {
+    id: postData.id,
+    author_id: postData.authorId,
+    author_email: postData.authorEmail,
+    author_display_name: postData.authorDisplayName,
+    title: postData.title,
+    excerpt: postData.excerpt,
+    content: postData.content,
+    category: postData.category,
+    cover_image: postData.coverImage,
+    read_time: postData.readTime,
+    status: postData.status,
+    slug: postData.slug,
+    created_at: postData.createdAt,
+    updated_at: postData.updatedAt,
+    published_at: postData.publishedAt,
+  };
 }
 
-async function request(path, options = {}) {
+function isConfigured() {
+  return DATA_MODE === 'supabase' && getSupabaseConfig().enabled;
+}
+
+async function getClient() {
   if (!isConfigured()) {
-    throw new Error('API base URL is not configured');
+    throw new Error('Supabase is not configured');
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.headers || {}),
-    },
-    ...options,
-  });
-
-  if (!response.ok) {
-    const payload = await response.json().catch(() => null);
-    throw new Error(payload?.message || 'Request failed');
+  const client = getSupabaseClient();
+  if (!client) {
+    throw new Error('Supabase client could not be created');
   }
 
-  if (response.status === 204) {
-    return null;
+  return client;
+}
+
+function ensureSuccess(result, action) {
+  if (result.error) {
+    throw new Error(result.error.message || `Supabase ${action} failed`);
   }
 
-  return response.json();
+  return result.data;
 }
 
 export function getApiConfig() {
+  const config = getSupabaseConfig();
   return {
-    baseUrl: API_BASE_URL,
+    mode: DATA_MODE,
+    provider: 'supabase',
+    baseUrl: config.url || null,
     enabled: isConfigured(),
   };
 }
 
-export function fetchPosts() {
-  return request('/api/posts');
+function mapPostFromDb(postData) {
+  return {
+    id: postData.id,
+    authorId: postData.author_id,
+    authorEmail: postData.author_email,
+    authorDisplayName: postData.author_display_name,
+    title: postData.title,
+    excerpt: postData.excerpt,
+    content: postData.content,
+    category: postData.category,
+    coverImage: postData.cover_image,
+    readTime: postData.read_time,
+    status: postData.status,
+    slug: postData.slug,
+    createdAt: postData.created_at,
+    updatedAt: postData.updated_at,
+    publishedAt: postData.published_at,
+  };
 }
 
-export function createPost(postData) {
-  return request('/api/posts', {
-    method: 'POST',
-    body: JSON.stringify(postData),
-  });
+export async function fetchPosts() {
+  const supabase = await getClient();
+  const result = await supabase
+    .from(POSTS_TABLE)
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  return ensureSuccess(result, 'select').map(mapPostFromDb);
 }
 
-export function updatePost(postId, postData) {
-  return request(`/api/posts/${postId}`, {
-    method: 'PUT',
-    body: JSON.stringify(postData),
-  });
+export async function createPost(postData) {
+  const supabase = await getClient();
+  const result = await supabase
+    .from(POSTS_TABLE)
+    .insert(mapPostForDb(postData))
+    .select()
+    .single();
+
+  return mapPostFromDb(ensureSuccess(result, 'insert'));
 }
 
-export function deletePost(postId) {
-  return request(`/api/posts/${postId}`, {
-    method: 'DELETE',
-  });
+export async function updatePost(postId, postData) {
+  const supabase = await getClient();
+  const result = await supabase
+    .from(POSTS_TABLE)
+    .update(mapPostForDb(postData))
+    .eq('id', postId)
+    .select()
+    .single();
+
+  return mapPostFromDb(ensureSuccess(result, 'update'));
+}
+
+export async function deletePost(postId) {
+  const supabase = await getClient();
+  const result = await supabase
+    .from(POSTS_TABLE)
+    .delete()
+    .eq('id', postId);
+
+  ensureSuccess(result, 'delete');
 }

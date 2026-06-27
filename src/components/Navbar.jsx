@@ -1,14 +1,16 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Menu, X, Search, PenSquare } from "lucide-react";
+import { Menu, X, Search, PenSquare, LogIn, LogOut } from "lucide-react";
 import { Button } from "./ui/button";
 import { useCategories } from "../hooks/useCategories";
+import { useAuth } from "../hooks/useAuth";
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const navigate = useNavigate();
   const { categories } = useCategories();
+  const { user, isEnabled, signOut } = useAuth();
 
   const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
 
@@ -19,6 +21,12 @@ const Navbar = () => {
       setSearchQuery("");
       setIsMenuOpen(false);
     }
+  };
+
+  const handleSignOut = async () => {
+    await signOut();
+    setIsMenuOpen(false);
+    navigate('/');
   };
 
   return (
@@ -57,15 +65,33 @@ const Navbar = () => {
             <Link to="/">Home</Link>
           </Button>
 
-          <Button
-            asChild
-            className="bg-[hsl(var(--primary))] text-white hover:bg-blue-800 transition-colors flex items-center gap-1"
-          >
-            <Link to="/create">
-              <PenSquare className="h-4 w-4" />
-              Write Post
-            </Link>
-          </Button>
+          {(!isEnabled || user) && (
+            <Button
+              asChild
+              className="bg-[hsl(var(--primary))] text-white hover:bg-blue-800 transition-colors flex items-center gap-1"
+            >
+              <Link to="/create">
+                <PenSquare className="h-4 w-4" />
+                Write Post
+              </Link>
+            </Button>
+          )}
+
+          {isEnabled && (
+            user ? (
+              <Button variant="outline" onClick={handleSignOut}>
+                <LogOut className="h-4 w-4 mr-2" />
+                Sign out
+              </Button>
+            ) : (
+              <Button asChild variant="outline">
+                <Link to="/auth">
+                  <LogIn className="h-4 w-4 mr-2" />
+                  Sign in
+                </Link>
+              </Button>
+            )
+          )}
         </nav>
 
         {/* Mobile Menu button */}
@@ -106,15 +132,37 @@ const Navbar = () => {
               </Link>
             </Button>
 
-            <Button
-              asChild
-              className="w-full justify-start bg-[hsl(var(--primary))] text-white hover:bg-blue-800 transition-colors flex items-center gap-1"
-            >
-              <Link to="/create" onClick={() => setIsMenuOpen(false)}>
-                <PenSquare className="h-4 w-4" />
-                Write Post
-              </Link>
-            </Button>
+            {(!isEnabled || user) && (
+              <Button
+                asChild
+                className="w-full justify-start bg-[hsl(var(--primary))] text-white hover:bg-blue-800 transition-colors flex items-center gap-1"
+              >
+                <Link to="/create" onClick={() => setIsMenuOpen(false)}>
+                  <PenSquare className="h-4 w-4" />
+                  Write Post
+                </Link>
+              </Button>
+            )}
+
+            {isEnabled && (
+              user ? (
+                <Button
+                  variant="outline"
+                  className="w-full justify-start"
+                  onClick={handleSignOut}
+                >
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Sign out
+                </Button>
+              ) : (
+                <Button asChild variant="outline" className="w-full justify-start">
+                  <Link to="/auth" onClick={() => setIsMenuOpen(false)}>
+                    <LogIn className="h-4 w-4 mr-2" />
+                    Sign in
+                  </Link>
+                </Button>
+              )
+            )}
 
             {categories.length > 0 && (
               <div className="pt-2 border-t border-[hsl(var(--border))]">

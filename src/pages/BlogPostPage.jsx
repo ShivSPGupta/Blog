@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Calendar, Clock, Tag, Edit, Trash2, ArrowLeft } from 'lucide-react';
+import { Calendar, Clock, Tag, Edit, Trash2, ArrowLeft, User } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Separator } from '../components/ui/separator';
 import { useToast } from '../components/ui/use-toast';
+import { useAuth } from '../hooks/useAuth';
 import { useBlogPosts } from '../hooks/useBlogPosts';
 import { formatDate } from '../lib/utils';
 
@@ -12,9 +13,12 @@ const BlogPostPage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { getPost, deletePost, isLoading } = useBlogPosts();
+  const { user, isEnabled, isAdmin, isLoading: isAuthLoading } = useAuth();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const post = useMemo(() => getPost(id), [getPost, id]);
+  const canManagePost = !isEnabled || isAdmin || post?.authorId === user?.id;
+  const authorName = post?.authorDisplayName || post?.authorEmail?.split('@')[0] || 'Author';
 
   useEffect(() => {
     document.title = post ? `${post.title} | Modern Blog` : 'Modern Blog';
@@ -31,19 +35,27 @@ const BlogPostPage = () => {
       </div>
     );
   }
+
+  if (isEnabled && isAuthLoading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-pulse text-xl">Loading account...</div>
+      </div>
+    );
+  }
   
-  const handleDelete = () => {
+  const handleDelete = async () => {
     try {
-      deletePost(id);
+      await deletePost(id);
       toast({
         title: 'Post deleted',
         description: 'Your post has been deleted successfully.',
       });
       navigate('/');
-    } catch {
+    } catch (error) {
       toast({
         title: 'Error',
-        description: 'Failed to delete the post. Please try again.',
+        description: error.message || 'Failed to delete the post. Please try again.',
         variant: 'destructive',
       });
     }
@@ -95,6 +107,10 @@ const BlogPostPage = () => {
             <Clock size={14} />
             <span>{post.readTime} min read</span>
           </div>
+          <div className="flex items-center gap-1">
+            <User size={14} />
+            <span>{authorName}</span>
+          </div>
           <span className="inline-flex items-center rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
             {post.status === 'draft' ? 'Draft' : 'Published'}
           </span>
@@ -109,46 +125,48 @@ const BlogPostPage = () => {
         
         <h1 className="text-3xl md:text-4xl font-bold mb-6">{post.title}</h1>
         
-        <div className="flex justify-end space-x-2 mb-6">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            asChild
-          >
-            <Link to={`/edit/${post.id}`}>
-              <Edit className="mr-2 h-4 w-4" />
-              Edit
-            </Link>
-          </Button>
-          
-          {!showDeleteConfirm ? (
+        {canManagePost && (
+          <div className="flex justify-end space-x-2 mb-6">
             <Button 
-              variant="destructive" 
-              size="sm"
-              onClick={() => setShowDeleteConfirm(true)}
+              variant="outline" 
+              size="sm" 
+              asChild
             >
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete
+              <Link to={`/edit/${post.id}`}>
+                <Edit className="mr-2 h-4 w-4" />
+                Edit
+              </Link>
             </Button>
-          ) : (
-            <div className="flex space-x-2">
+            
+            {!showDeleteConfirm ? (
               <Button 
                 variant="destructive" 
                 size="sm"
-                onClick={handleDelete}
+                onClick={() => setShowDeleteConfirm(true)}
               >
-                Confirm
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete
               </Button>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => setShowDeleteConfirm(false)}
-              >
-                Cancel
-              </Button>
-            </div>
-          )}
-        </div>
+            ) : (
+              <div className="flex space-x-2">
+                <Button 
+                  variant="destructive" 
+                  size="sm"
+                  onClick={handleDelete}
+                >
+                  Confirm
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setShowDeleteConfirm(false)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
         
         <Separator className="my-6" />
         

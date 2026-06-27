@@ -1,225 +1,78 @@
-import { useSyncExternalStore } from 'react';
-import { samplePosts } from '../lib/sample-data';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  getApiConfig,
-  fetchPosts as fetchPostsFromApi,
-  createPost as createPostOnApi,
-  updatePost as updatePostOnApi,
-  deletePost as deletePostOnApi,
-} from '../lib/blog-api';
+  createPost as createPostInService,
+  deletePost as deletePostInService,
+  fetchPosts,
+  readLocalPosts,
+  getPostsSource,
+  updatePost as updatePostInService,
+} from '../lib/posts-service';
 
-const STORAGE_KEY = 'blog-posts';
-const apiConfig = getApiConfig();
+const POSTS_QUERY_KEY = ['posts'];
 
-function readInitialPosts() {
-  if (typeof window === 'undefined') {
-    return samplePosts;
-  }
-
-  try {
-    const storedPosts = localStorage.getItem(STORAGE_KEY);
-    if (!storedPosts) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(samplePosts));
-      return samplePosts;
-    }
-
-    const parsedPosts = JSON.parse(storedPosts);
-    return Array.isArray(parsedPosts) ? parsedPosts : samplePosts;
-  } catch (error) {
-    console.error('Error loading posts:', error);
-    return samplePosts;
-  }
-}
-
-let state = {
-  posts: readInitialPosts(),
-  isLoading: true,
-  source: apiConfig.enabled ? 'api' : 'local',
-};
-
-const listeners = new Set();
-let bootstrapPromise = null;
-
-function emitChange() {
-  listeners.forEach((listener) => listener());
-}
-
-function persistPosts(posts) {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(posts));
-  } catch (error) {
-    console.error('Error saving posts:', error);
-  }
-}
-
-function setState(nextState) {
-  state = { ...state, ...nextState };
-  emitChange();
-}
-
-function setPosts(nextPosts, source = state.source) {
-  state = { ...state, posts: nextPosts, source };
-  persistPosts(nextPosts);
-  emitChange();
-}
-
-function subscribe(listener) {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
-}
-
-function getSnapshot() {
-  return state;
-}
-
-function normalizePost(postData, fallbackId = null) {
-  const title = String(postData.title || '').trim();
-  const now = new Date().toISOString();
-
-  return {
-    id: postData.id || fallbackId || crypto.randomUUID(),
-    title,
-    excerpt: String(postData.excerpt || '').trim(),
-    content: String(postData.content || '').trim(),
-    category: String(postData.category || 'General').trim(),
-    coverImage: String(postData.coverImage || postData.cover_image || '').trim(),
-    readTime: Number.parseInt(postData.readTime ?? postData.read_time ?? 5, 10) || 5,
-    status: postData.status === 'published' ? 'published' : 'draft',
-    slug: postData.slug || title.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''),
-    createdAt: postData.createdAt || now,
-    updatedAt: now,
-    publishedAt: postData.status === 'published' ? (postData.publishedAt || now) : null,
-  };
-}
-
-async function bootstrapPosts() {
-  if (bootstrapPromise) {
-    return bootstrapPromise;
-  }
-
-  bootstrapPromise = (async () => {
-    if (!apiConfig.enabled) {
-      setState({
-        posts: readInitialPosts(),
-        isLoading: false,
-        source: 'local',
-      });
-      return;
-    }
-
-    try {
-      const remotePosts = await fetchPostsFromApi();
-      setPosts(remotePosts, 'api');
-      setState({ isLoading: false });
-      return;
-    } catch (error) {
-      console.error('Error loading posts from API:', error);
-    }
-
-    setState({
-      posts: readInitialPosts(),
-      isLoading: false,
-      source: 'local',
-    });
-  })();
-
-  return bootstrapPromise;
-}
-
-void bootstrapPosts();
-
-async function createPost(postData) {
-  const normalized = normalizePost(postData);
-
-  if (apiConfig.enabled) {
-    try {
-      const created = await createPostOnApi(normalized);
-      const nextPosts = [created, ...state.posts];
-      setPosts(nextPosts, 'api');
-      return created;
-    } catch (error) {
-      console.error('Error creating post through API:', error);
-    }
-  }
-
-  const nextPosts = [normalized, ...state.posts];
-  setPosts(nextPosts, 'local');
-  return normalized;
-}
-
-async function updatePost(id, postData) {
-  const currentPost = state.posts.find((post) => post.id === id);
-  if (!currentPost) {
-    throw new Error('Post not found');
-  }
-
-  const normalized = normalizePost(
-    {
-      ...currentPost,
-      ...postData,
-      id,
-      createdAt: currentPost.createdAt,
-      slug: currentPost.slug,
-      publishedAt:
-        postData.status === 'published' || currentPost.status === 'published'
-          ? currentPost.publishedAt || new Date().toISOString()
-          : null,
-    },
-    id
+function mergePostIntoList(posts, nextPost) {
+  const withoutCurrent = posts.filter((post) => post.id !== nextPost.id);
+  return [nextPost, ...withoutCurrent].sort(
+    (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
   );
-
-  if (apiConfig.enabled) {
-    try {
-      const updated = await updatePostOnApi(id, normalized);
-      const nextPosts = state.posts.map((post) => (post.id === id ? updated : post));
-      setPosts(nextPosts, 'api');
-      return updated;
-    } catch (error) {
-      console.error('Error updating post through API:', error);
-    }
-  }
-
-  const nextPosts = state.posts.map((post) => (post.id === id ? normalized : post));
-  setPosts(nextPosts, 'local');
-  return normalized;
-}
-
-async function deletePost(id) {
-  if (apiConfig.enabled) {
-    try {
-      await deletePostOnApi(id);
-      const nextPosts = state.posts.filter((post) => post.id !== id);
-      setPosts(nextPosts, 'api');
-      return;
-    } catch (error) {
-      console.error('Error deleting post through API:', error);
-    }
-  }
-
-  const nextPosts = state.posts.filter((post) => post.id !== id);
-  setPosts(nextPosts, 'local');
-}
-
-function getPost(id) {
-  return state.posts.find((post) => post.id === id);
 }
 
 export function useBlogPosts() {
-  const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const queryClient = useQueryClient();
+  const sourceHint = getPostsSource();
+  const postsQuery = useQuery({
+    queryKey: POSTS_QUERY_KEY,
+    queryFn: fetchPosts,
+    initialData: sourceHint === 'local'
+      ? {
+          posts: readLocalPosts(),
+          source: 'local',
+        }
+      : undefined,
+  });
+
+  const posts = postsQuery.data?.posts || [];
+  const source = postsQuery.data?.source || sourceHint;
+
+  const createMutation = useMutation({
+    mutationFn: (postData) => createPostInService(postData, posts),
+    onSuccess: ({ post, source: nextSource }) => {
+      queryClient.setQueryData(POSTS_QUERY_KEY, (current) => ({
+        posts: mergePostIntoList(current?.posts || [], post),
+        source: nextSource,
+      }));
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, postData }) => updatePostInService(id, postData, posts),
+    onSuccess: ({ post, source: nextSource }) => {
+      queryClient.setQueryData(POSTS_QUERY_KEY, (current) => ({
+        posts: (current?.posts || []).map((item) => (item.id === post.id ? post : item)),
+        source: nextSource,
+      }));
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id) => deletePostInService(id, posts),
+    onSuccess: ({ id, source: nextSource }) => {
+      queryClient.setQueryData(POSTS_QUERY_KEY, (current) => ({
+        posts: (current?.posts || []).filter((item) => item.id !== id),
+        source: nextSource,
+      }));
+    },
+  });
 
   return {
-    posts: snapshot.posts,
-    isLoading: snapshot.isLoading,
-    source: snapshot.source,
-    createPost,
-    updatePost,
-    deletePost,
-    getPost,
+    posts,
+    source,
+    isLoading: postsQuery.isLoading,
+    isFetching: postsQuery.isFetching,
+    error: postsQuery.error,
+    createPost: createMutation.mutateAsync,
+    updatePost: (id, postData) => updateMutation.mutateAsync({ id, postData }),
+    deletePost: deleteMutation.mutateAsync,
+    getPost: (id) => posts.find((post) => post.id === id),
   };
 }
