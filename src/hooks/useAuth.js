@@ -56,7 +56,7 @@ async function hydrateProfile(user) {
     const profile = await upsertProfile({
       id: user.id,
       email: user.email,
-      displayName: user.email.split('@')[0] || 'Author',
+      displayName: user.user_metadata?.display_name || user.email.split('@')[0] || 'Author',
     });
 
     setState({ profile });
@@ -137,6 +137,42 @@ export async function signInWithPassword({ email, password }) {
   return data;
 }
 
+export async function requestPasswordReset(email) {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    throw new Error('Supabase auth is not configured');
+  }
+
+  const redirectTo = typeof window !== 'undefined'
+    ? `${window.location.origin}/auth?mode=reset-password`
+    : undefined;
+
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+export async function updatePassword(password) {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    throw new Error('Supabase auth is not configured');
+  }
+
+  const { data, error } = await supabase.auth.updateUser({
+    password,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data;
+}
+
 export async function signUpWithPassword({ email, password, displayName }) {
   const supabase = getSupabaseClient();
   if (!supabase) {
@@ -146,13 +182,18 @@ export async function signUpWithPassword({ email, password, displayName }) {
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
+    options: {
+      data: {
+        display_name: displayName,
+      },
+    },
   });
 
   if (error) {
     throw new Error(error.message);
   }
 
-  if (data.user) {
+  if (data.user && data.session) {
     await upsertProfile({
       id: data.user.id,
       email: data.user.email,
@@ -160,7 +201,10 @@ export async function signUpWithPassword({ email, password, displayName }) {
     });
   }
 
-  return data;
+  return {
+    ...data,
+    needsEmailConfirmation: !data.session,
+  };
 }
 
 export async function saveProfile(profileData) {
@@ -213,6 +257,8 @@ export function useAuth() {
     isEnabled: snapshot.isEnabled,
     signInWithPassword,
     signUpWithPassword,
+    requestPasswordReset,
+    updatePassword,
     signOut,
     saveProfile,
   };
