@@ -4,6 +4,7 @@ import { fetchProfile, upsertProfile } from '../lib/profiles-service';
 import { getSupabaseClient } from '../lib/supabase-client';
 
 const apiConfig = getApiConfig();
+const authRedirectBaseUrl = import.meta.env.VITE_APP_URL?.trim();
 
 let state = {
   user: null,
@@ -35,6 +36,15 @@ function subscribe(listener) {
 
 function getSnapshot() {
   return state;
+}
+
+function getAuthRedirectUrl(path) {
+  const baseUrl = authRedirectBaseUrl || (typeof window !== 'undefined' ? window.location.origin : '');
+  if (!baseUrl) {
+    return undefined;
+  }
+
+  return `${baseUrl.replace(/\/+$/, '')}${path}`;
 }
 
 async function hydrateProfile(user) {
@@ -143,9 +153,7 @@ export async function requestPasswordReset(email) {
     throw new Error('Supabase auth is not configured');
   }
 
-  const redirectTo = typeof window !== 'undefined'
-    ? `${window.location.origin}/auth?mode=reset-password`
-    : undefined;
+  const redirectTo = getAuthRedirectUrl('/auth?mode=reset-password');
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo,
@@ -183,6 +191,7 @@ export async function signUpWithPassword({ email, password, displayName }) {
     email,
     password,
     options: {
+      emailRedirectTo: getAuthRedirectUrl('/auth'),
       data: {
         display_name: displayName,
       },

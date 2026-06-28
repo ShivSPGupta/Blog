@@ -7,6 +7,25 @@ import { Label } from '../components/ui/label';
 import { useToast } from '../components/ui/use-toast';
 import { useAuth } from '../hooks/useAuth';
 
+const AUTH_CONTENT = {
+  'sign-in': {
+    title: 'Sign in',
+    description: 'Access your posts and manage your own content.',
+  },
+  'sign-up': {
+    title: 'Create account',
+    description: 'Create an account to write and manage your own posts.',
+  },
+  'forgot-password': {
+    title: 'Reset password',
+    description: 'We will email you a recovery link.',
+  },
+  'reset-password': {
+    title: 'Choose a new password',
+    description: 'Set a new password for your account.',
+  },
+};
+
 const AuthPage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -33,6 +52,7 @@ const AuthPage = () => {
     password: '',
     confirmPassword: '',
   });
+  const [feedback, setFeedback] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -75,10 +95,14 @@ const AuthPage = () => {
   const handleChange = (event) => {
     const { name, value } = event.target;
     setFormData((current) => ({ ...current, [name]: value }));
+    if (feedback?.type === 'error') {
+      setFeedback(null);
+    }
   };
 
   const switchMode = (nextMode) => {
     setMode(nextMode);
+    setFeedback(null);
     setFormData((current) => ({
       displayName: nextMode === 'sign-up' ? current.displayName : '',
       email: current.email,
@@ -94,6 +118,10 @@ const AuthPage = () => {
     try {
       if (mode === 'sign-in') {
         await signInWithPassword(formData);
+        setFeedback({
+          type: 'success',
+          message: 'Signed in successfully. Redirecting to your blog dashboard.',
+        });
         toast({
           title: 'Signed in',
           description: 'Your account is ready.',
@@ -101,6 +129,14 @@ const AuthPage = () => {
         navigate('/');
       } else if (mode === 'sign-up') {
         const result = await signUpWithPassword(formData);
+        const message = result.needsEmailConfirmation
+          ? 'Confirmation email sent. Check your inbox before signing in.'
+          : 'Your account has been created and you are being signed in.';
+
+        setFeedback({
+          type: 'success',
+          message,
+        });
         toast({
           title: 'Account created',
           description: result.needsEmailConfirmation
@@ -122,6 +158,10 @@ const AuthPage = () => {
         navigate('/');
       } else if (mode === 'forgot-password') {
         await requestPasswordReset(formData.email);
+        setFeedback({
+          type: 'success',
+          message: 'If an account exists for this email, a reset link has been sent.',
+        });
         toast({
           title: 'Reset email sent',
           description: 'If an account exists for this email, a reset link has been sent.',
@@ -137,6 +177,10 @@ const AuthPage = () => {
         }
 
         await updatePassword(formData.password);
+        setFeedback({
+          type: 'success',
+          message: 'Password updated successfully. Sign in with your new password.',
+        });
         toast({
           title: 'Password updated',
           description: 'Your password has been changed. You can now sign in normally.',
@@ -149,6 +193,10 @@ const AuthPage = () => {
         switchMode('sign-in');
       }
     } catch (error) {
+      setFeedback({
+        type: 'error',
+        message: error.message,
+      });
       toast({
         title: 'Authentication error',
         description: error.message,
@@ -169,36 +217,24 @@ const AuthPage = () => {
       </Button>
 
       <div className="rounded-xl border border-border bg-background p-4 shadow-sm sm:p-6">
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="mb-6 flex flex-col gap-4">
           <div>
             <h1 className="text-2xl font-bold">
-              {mode === 'sign-in'
-                ? 'Sign in'
-                : mode === 'sign-up'
-                  ? 'Create account'
-                  : mode === 'forgot-password'
-                    ? 'Reset password'
-                    : 'Choose a new password'}
+              {AUTH_CONTENT[mode].title}
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
-              {mode === 'sign-in'
-                ? 'Access your posts and manage your own content.'
-                : mode === 'sign-up'
-                  ? 'Create an account to write and manage your own posts.'
-                  : mode === 'forgot-password'
-                    ? 'We will email you a recovery link.'
-                    : 'Set a new password for your account.'}
+              {AUTH_CONTENT[mode].description}
             </p>
           </div>
 
           {mode !== 'reset-password' && (
-            <div className="grid w-full grid-cols-2 gap-2 sm:w-auto">
+            <div className="grid w-full grid-cols-2 gap-2 rounded-lg border border-border bg-muted/40 p-1">
               <Button
                 type="button"
                 variant={mode === 'sign-in' ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => switchMode('sign-in')}
-                className="w-full"
+                className="h-10 w-full justify-center"
               >
                 <LogIn className="mr-2 h-4 w-4" />
                 Sign in
@@ -208,7 +244,7 @@ const AuthPage = () => {
                 variant={mode === 'sign-up' ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => switchMode('sign-up')}
-                className="w-full"
+                className="h-10 w-full justify-center"
               >
                 <UserPlus className="mr-2 h-4 w-4" />
                 Sign up
@@ -216,6 +252,18 @@ const AuthPage = () => {
             </div>
           )}
         </div>
+
+        {feedback && (
+          <div
+            className={`mb-4 rounded-lg border px-4 py-3 text-sm ${
+              feedback.type === 'error'
+                ? 'border-destructive/30 bg-destructive/5 text-destructive'
+                : 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+            }`}
+          >
+            {feedback.message}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {mode === 'sign-up' && (
@@ -235,34 +283,34 @@ const AuthPage = () => {
           )}
 
           {mode !== 'reset-password' && (
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              name="email"
-              type="email"
-              value={formData.email}
-              onChange={handleChange}
-              autoComplete="email"
-              required
-            />
-          </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                value={formData.email}
+                onChange={handleChange}
+                autoComplete="email"
+                required
+              />
+            </div>
           )}
 
           {mode !== 'forgot-password' && (
-          <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              name="password"
-              type="password"
-              value={formData.password}
-              onChange={handleChange}
-              autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'}
-              minLength={6}
-              required
-            />
-          </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                name="password"
+                type="password"
+                value={formData.password}
+                onChange={handleChange}
+                autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'}
+                minLength={6}
+                required
+              />
+            </div>
           )}
 
           {mode === 'reset-password' && (
