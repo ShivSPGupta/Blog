@@ -27,7 +27,7 @@ const AuthPage = () => {
 
   if (!isEnabled) {
     return (
-      <div className="max-w-xl rounded-lg border border-[hsl(var(--border))] bg-muted/30 p-8 text-center mx-auto">
+      <div className="max-w-xl rounded-lg border border-border bg-muted/30 p-8 text-center mx-auto">
         <h1 className="text-2xl font-bold mb-3">Auth is disabled</h1>
         <p className="text-muted-foreground mb-6">
           This app is running in local mode. Switch `VITE_BLOG_DATA_MODE` to `supabase` to enable accounts.
@@ -90,7 +90,7 @@ const AuthPage = () => {
         </Link>
       </Button>
 
-      <div className="rounded-xl border border-[hsl(var(--border))] bg-background p-6 shadow-sm">
+      <div className="rounded-xl border border-border bg-background p-6 shadow-sm">
         <div className="flex items-center justify-between gap-3 mb-6">
           <div>
             <h1 className="text-2xl font-bold">

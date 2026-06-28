@@ -180,11 +180,11 @@ where auth_users.id = public.profiles.id;
 update public.posts
 set author_email = auth_users.email,
     author_display_name = coalesce(
-      nullif(public.profiles.display_name, ''),
+      nullif(profiles.display_name, ''),
       nullif(split_part(auth_users.email, '@', 1), ''),
       'Author'
     ),
     updated_at = now()
 from auth.users as auth_users
-left join public.profiles on public.profiles.id = public.posts.author_id
+left join public.profiles as profiles on profiles.id = auth_users.id
 where auth_users.id = public.posts.author_id;
