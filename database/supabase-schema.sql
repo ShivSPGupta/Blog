@@ -31,6 +31,19 @@ create table if not exists public.posts (
   published_at timestamptz
 );
 
+create index if not exists posts_search_idx
+on public.posts
+using gin (
+  to_tsvector(
+    'english',
+    coalesce(title, '') || ' ' ||
+    coalesce(excerpt, '') || ' ' ||
+    coalesce(content, '') || ' ' ||
+    coalesce(category, '') || ' ' ||
+    coalesce(slug, '')
+  )
+);
+
 alter table public.profiles enable row level security;
 alter table public.posts enable row level security;
 
@@ -47,6 +60,39 @@ as $$
     where id = user_id
       and role = 'admin'
   );
+$$;
+
+create or replace function public.search_posts(search_term text)
+returns setof public.posts
+language sql
+stable
+set search_path = public
+as $$
+  select posts.*
+  from public.posts as posts
+  where
+    nullif(trim(search_term), '') is not null
+    and to_tsvector(
+      'english',
+      coalesce(posts.title, '') || ' ' ||
+      coalesce(posts.excerpt, '') || ' ' ||
+      coalesce(posts.content, '') || ' ' ||
+      coalesce(posts.category, '') || ' ' ||
+      coalesce(posts.slug, '')
+    ) @@ websearch_to_tsquery('english', trim(search_term))
+  order by
+    ts_rank(
+      to_tsvector(
+        'english',
+        coalesce(posts.title, '') || ' ' ||
+        coalesce(posts.excerpt, '') || ' ' ||
+        coalesce(posts.content, '') || ' ' ||
+        coalesce(posts.category, '') || ' ' ||
+        coalesce(posts.slug, '')
+      ),
+      websearch_to_tsquery('english', trim(search_term))
+    ) desc,
+    posts.created_at desc;
 $$;
 
 create or replace function public.sync_profile_email()
@@ -120,18 +166,21 @@ grant insert, update on table public.profiles to authenticated;
 grant select on table public.posts to anon, authenticated;
 grant insert, update, delete on table public.posts to authenticated;
 
+drop policy if exists "public can read profiles" on public.profiles;
 create policy "public can read profiles"
 on public.profiles
 for select
 to anon, authenticated
 using (true);
 
+drop policy if exists "authenticated users can insert own profile" on public.profiles;
 create policy "authenticated users can insert own profile"
 on public.profiles
 for insert
 to authenticated
 with check (auth.uid() = id and coalesce(role, 'author') = 'author');
 
+drop policy if exists "users can update own profile" on public.profiles;
 create policy "users can update own profile"
 on public.profiles
 for update
@@ -146,18 +195,21 @@ with check (
   )
 );
 
+drop policy if exists "public can read posts" on public.posts;
 create policy "public can read posts"
 on public.posts
 for select
 to anon, authenticated
 using (true);
 
+drop policy if exists "authenticated users can insert own posts" on public.posts;
 create policy "authenticated users can insert own posts"
 on public.posts
 for insert
 to authenticated
 with check (auth.uid() = author_id);
 
+drop policy if exists "authors can update own posts" on public.posts;
 create policy "authors can update own posts"
 on public.posts
 for update
@@ -165,6 +217,7 @@ to authenticated
 using (auth.uid() = author_id or public.is_admin(auth.uid()))
 with check (auth.uid() = author_id or public.is_admin(auth.uid()));
 
+drop policy if exists "authors can delete own posts" on public.posts;
 create policy "authors can delete own posts"
 on public.posts
 for delete

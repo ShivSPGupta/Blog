@@ -7,31 +7,26 @@ import { Separator } from '../components/ui/separator';
 import FeaturedPost from '../components/FeaturedPost';
 import BlogCard from '../components/BlogCard';
 import CategoryList from '../components/CategoryList';
-import { useBlogPosts } from '../hooks/useBlogPosts';
+import { useBlogPosts, useSearchPosts } from '../hooks/useBlogPosts';
 
 const HomePage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const { posts, isLoading, error } = useBlogPosts();
   const searchQuery = searchParams.get('search') || '';
+  const trimmedQuery = searchQuery.trim();
+  const allPostsQuery = useBlogPosts();
+  const searchPostsQuery = useSearchPosts(trimmedQuery);
+  const activeQuery = trimmedQuery ? searchPostsQuery : allPostsQuery;
+  const { posts, isLoading, error } = activeQuery;
 
-  const filteredPosts = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-
-    if (!query) {
-      return posts;
-    }
-
-    return posts.filter((post) =>
-      post.title.toLowerCase().includes(query) ||
-      post.excerpt.toLowerCase().includes(query) ||
-      post.content.toLowerCase().includes(query) ||
-      post.category.toLowerCase().includes(query)
-    );
-  }, [posts, searchQuery]);
+  const featuredPost = useMemo(() => (trimmedQuery ? null : posts[0] || null), [posts, trimmedQuery]);
+  const listedPosts = useMemo(
+    () => (trimmedQuery ? posts : posts.slice(1)),
+    [posts, trimmedQuery]
+  );
 
   const handleSearch = (e) => {
     e.preventDefault();
-    const query = searchQuery.trim();
+    const query = trimmedQuery;
 
     if (query) {
       setSearchParams({ search: query });
@@ -58,11 +53,6 @@ const HomePage = () => {
       </div>
     );
   }
-  
-  // Get featured post (most recent)
-  const featuredPost = filteredPosts.length > 0 ? filteredPosts[0] : null;
-  // Get remaining posts
-  const remainingPosts = filteredPosts.length > 1 ? filteredPosts.slice(1) : [];
 
   return (
     <div>
@@ -97,7 +87,7 @@ const HomePage = () => {
       
       <CategoryList />
       
-      {!searchQuery && !featuredPost && remainingPosts.length === 0 && (
+      {!trimmedQuery && !featuredPost && listedPosts.length === 0 && (
         <div className="text-center py-12">
           <h2 className="text-2xl font-bold mb-4">No Posts Yet</h2>
           <p className="text-muted-foreground mb-6">
@@ -106,7 +96,7 @@ const HomePage = () => {
         </div>
       )}
       
-      {searchQuery && filteredPosts.length === 0 && (
+      {trimmedQuery && listedPosts.length === 0 && (
         <div className="text-center py-12">
           <h2 className="text-2xl font-bold mb-4">No Results Found</h2>
           <p className="text-muted-foreground mb-6">
@@ -116,13 +106,13 @@ const HomePage = () => {
         </div>
       )}
       
-      {remainingPosts.length > 0 && (
+      {listedPosts.length > 0 && (
         <div className="mt-12">
           <h2 className="text-2xl font-bold mb-6">
-            {searchQuery ? 'Search Results' : 'Latest Posts'}
+            {trimmedQuery ? 'Search Results' : 'Latest Posts'}
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {remainingPosts.map((post) => (
+            {listedPosts.map((post) => (
               <BlogCard key={post.id} post={post} />
             ))}
           </div>

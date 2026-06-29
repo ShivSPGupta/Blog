@@ -86,6 +86,21 @@ export async function fetchPosts() {
   return ensureSuccess(result, 'select').map(mapPostFromDb);
 }
 
+export async function searchPosts(searchQuery) {
+  const supabase = await getClient();
+  const trimmedQuery = String(searchQuery || '').trim();
+
+  if (!trimmedQuery) {
+    return fetchPosts();
+  }
+
+  const result = await supabase.rpc('search_posts', {
+    search_term: trimmedQuery,
+  });
+
+  return ensureSuccess(result, 'search').map(mapPostFromDb);
+}
+
 export async function createPost(postData) {
   const supabase = await getClient();
   const result = await supabase

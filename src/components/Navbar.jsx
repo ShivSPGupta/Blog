@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Menu, X, Search, PenSquare, LogIn, LogOut } from "lucide-react";
+import { Menu, X, Search, PenSquare, LogIn, LogOut, UserCircle2 } from "lucide-react";
 import { Button } from "./ui/button";
 import { useCategories } from "../hooks/useCategories";
 import { useAuth } from "../hooks/useAuth";
@@ -10,7 +10,8 @@ const Navbar = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const navigate = useNavigate();
   const { categories } = useCategories();
-  const { user, isEnabled, signOut } = useAuth();
+  const { user, profile, isEnabled, signOut } = useAuth();
+  const profileLabel = profile?.displayName || user?.email?.split("@")[0] || "Profile";
 
   const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
 
@@ -73,6 +74,15 @@ const Navbar = () => {
               <Link to="/create">
                 <PenSquare className="h-4 w-4" />
                 Write Post
+              </Link>
+            </Button>
+          )}
+
+          {isEnabled && user && (
+            <Button asChild variant="outline">
+              <Link to="/profile">
+                <UserCircle2 className="h-4 w-4 mr-2" />
+                {profileLabel}
               </Link>
             </Button>
           )}
@@ -140,6 +150,15 @@ const Navbar = () => {
                 <Link to="/create" onClick={() => setIsMenuOpen(false)}>
                   <PenSquare className="h-4 w-4" />
                   Write Post
+                </Link>
+              </Button>
+            )}
+
+            {isEnabled && user && (
+              <Button asChild variant="outline" className="w-full justify-start">
+                <Link to="/profile" onClick={() => setIsMenuOpen(false)}>
+                  <UserCircle2 className="h-4 w-4 mr-2" />
+                  {profileLabel}
                 </Link>
               </Button>
             )}

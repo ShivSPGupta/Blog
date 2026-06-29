@@ -2,6 +2,7 @@ import { samplePosts } from './sample-data';
 import {
   getApiConfig,
   fetchPosts as fetchPostsFromApi,
+  searchPosts as searchPostsFromApi,
   createPost as createPostOnApi,
   updatePost as updatePostOnApi,
   deletePost as deletePostOnApi,
@@ -85,6 +86,22 @@ export function getPostsSource() {
   return apiConfig.enabled ? 'supabase' : 'local';
 }
 
+export function filterPostsByQuery(posts, searchQuery) {
+  const query = String(searchQuery || '').trim().toLowerCase();
+
+  if (!query) {
+    return posts;
+  }
+
+  return posts.filter((post) =>
+    post.title.toLowerCase().includes(query)
+    || post.excerpt.toLowerCase().includes(query)
+    || post.content.toLowerCase().includes(query)
+    || post.category.toLowerCase().includes(query)
+    || post.slug.toLowerCase().includes(query)
+  );
+}
+
 export async function fetchPosts() {
   if (!apiConfig.enabled) {
     return {
@@ -105,6 +122,27 @@ export async function fetchPosts() {
     console.error('Error loading posts from Supabase:', error);
     throw error;
   }
+}
+
+export async function searchPosts(searchQuery) {
+  const trimmedQuery = String(searchQuery || '').trim();
+
+  if (!trimmedQuery) {
+    return fetchPosts();
+  }
+
+  if (!apiConfig.enabled) {
+    return {
+      posts: filterPostsByQuery(readLocalPosts(), trimmedQuery),
+      source: 'local',
+    };
+  }
+
+  const posts = await searchPostsFromApi(trimmedQuery);
+  return {
+    posts,
+    source: 'supabase',
+  };
 }
 
 export async function createPost(postData, currentPosts = []) {

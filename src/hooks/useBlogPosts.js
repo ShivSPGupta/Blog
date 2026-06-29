@@ -3,12 +3,15 @@ import {
   createPost as createPostInService,
   deletePost as deletePostInService,
   fetchPosts,
+  searchPosts as searchPostsInService,
   readLocalPosts,
   getPostsSource,
+  filterPostsByQuery,
   updatePost as updatePostInService,
 } from '../lib/posts-service';
 
 const POSTS_QUERY_KEY = ['posts'];
+const SEARCH_POSTS_QUERY_KEY = ['post-search'];
 
 function mergePostIntoList(posts, nextPost) {
   const withoutCurrent = posts.filter((post) => post.id !== nextPost.id);
@@ -41,6 +44,7 @@ export function useBlogPosts() {
         posts: mergePostIntoList(current?.posts || [], post),
         source: nextSource,
       }));
+      void queryClient.invalidateQueries({ queryKey: SEARCH_POSTS_QUERY_KEY });
     },
   });
 
@@ -51,6 +55,7 @@ export function useBlogPosts() {
         posts: (current?.posts || []).map((item) => (item.id === post.id ? post : item)),
         source: nextSource,
       }));
+      void queryClient.invalidateQueries({ queryKey: SEARCH_POSTS_QUERY_KEY });
     },
   });
 
@@ -61,6 +66,7 @@ export function useBlogPosts() {
         posts: (current?.posts || []).filter((item) => item.id !== id),
         source: nextSource,
       }));
+      void queryClient.invalidateQueries({ queryKey: SEARCH_POSTS_QUERY_KEY });
     },
   });
 
@@ -74,5 +80,29 @@ export function useBlogPosts() {
     updatePost: (id, postData) => updateMutation.mutateAsync({ id, postData }),
     deletePost: deleteMutation.mutateAsync,
     getPost: (id) => posts.find((post) => post.id === id),
+  };
+}
+
+export function useSearchPosts(searchQuery) {
+  const sourceHint = getPostsSource();
+  const trimmedQuery = String(searchQuery || '').trim();
+  const searchQueryResult = useQuery({
+    queryKey: [...SEARCH_POSTS_QUERY_KEY, trimmedQuery],
+    queryFn: () => searchPostsInService(trimmedQuery),
+    enabled: Boolean(trimmedQuery),
+    initialData: sourceHint === 'local' && trimmedQuery
+      ? {
+          posts: filterPostsByQuery(readLocalPosts(), trimmedQuery),
+          source: 'local',
+        }
+      : undefined,
+  });
+
+  return {
+    posts: searchQueryResult.data?.posts || [],
+    source: searchQueryResult.data?.source || sourceHint,
+    isLoading: searchQueryResult.isLoading,
+    isFetching: searchQueryResult.isFetching,
+    error: searchQueryResult.error,
   };
 }
