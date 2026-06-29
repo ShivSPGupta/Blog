@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, KeyRound, LogIn, UserPlus } from 'lucide-react';
+import { ArrowLeft, KeyRound, LogIn, Smartphone, UserPlus } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -33,11 +33,14 @@ const AuthPage = () => {
     signInWithPassword,
     signUpWithPassword,
     requestPasswordReset,
+    sendPhoneOtp,
+    verifyPhoneOtp,
     updatePassword,
     user,
     isEnabled,
     isLoading,
   } = useAuth();
+  const [authMethod, setAuthMethod] = useState('email');
   const [mode, setMode] = useState(() => {
     if (typeof window === 'undefined') {
       return 'sign-in';
@@ -49,6 +52,8 @@ const AuthPage = () => {
   const [formData, setFormData] = useState({
     displayName: '',
     email: '',
+    phone: '',
+    phoneOtp: '',
     password: '',
     confirmPassword: '',
   });
@@ -104,8 +109,24 @@ const AuthPage = () => {
     setMode(nextMode);
     setFeedback(null);
     setFormData((current) => ({
-      displayName: nextMode === 'sign-up' ? current.displayName : '',
+      displayName: nextMode === 'sign-up' || authMethod === 'phone' ? current.displayName : '',
       email: current.email,
+      phone: current.phone,
+      phoneOtp: '',
+      password: '',
+      confirmPassword: '',
+    }));
+  };
+
+  const switchAuthMethod = (nextMethod) => {
+    setAuthMethod(nextMethod);
+    setFeedback(null);
+    setMode(nextMethod === 'phone' ? 'phone' : 'sign-in');
+    setFormData((current) => ({
+      displayName: current.displayName,
+      email: current.email,
+      phone: current.phone,
+      phoneOtp: '',
       password: '',
       confirmPassword: '',
     }));
@@ -116,6 +137,45 @@ const AuthPage = () => {
     setIsSubmitting(true);
 
     try {
+      if (authMethod === 'phone') {
+        if (!formData.displayName.trim()) {
+          throw new Error('Display name is required.');
+        }
+
+        if (!formData.phoneOtp) {
+          await sendPhoneOtp({ phone: formData.phone });
+          setFeedback({
+            type: 'success',
+            message: 'OTP sent. Enter the SMS code to continue.',
+          });
+          toast({
+            title: 'OTP sent',
+            description: 'Enter the code sent to your phone number.',
+          });
+          setFormData((current) => ({
+            ...current,
+            phoneOtp: '',
+          }));
+          return;
+        }
+
+        await verifyPhoneOtp({
+          phone: formData.phone,
+          token: formData.phoneOtp,
+          displayName: formData.displayName,
+        });
+        setFeedback({
+          type: 'success',
+          message: 'Phone verified successfully. Redirecting to your blog dashboard.',
+        });
+        toast({
+          title: 'Signed in',
+          description: 'Your phone number has been verified.',
+        });
+        navigate('/');
+        return;
+      }
+
       if (mode === 'sign-in') {
         await signInWithPassword(formData);
         setFeedback({
@@ -149,6 +209,8 @@ const AuthPage = () => {
           setFormData({
             displayName: '',
             email: formData.email,
+            phone: '',
+            phoneOtp: '',
             password: '',
             confirmPassword: '',
           });
@@ -220,14 +282,41 @@ const AuthPage = () => {
         <div className="mb-6 flex flex-col gap-4">
           <div>
             <h1 className="text-2xl font-bold">
-              {AUTH_CONTENT[mode].title}
+              {authMethod === 'phone' ? 'Continue with phone' : AUTH_CONTENT[mode].title}
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
-              {AUTH_CONTENT[mode].description}
+              {authMethod === 'phone'
+                ? 'Use an SMS one-time password to sign in or create an account.'
+                : AUTH_CONTENT[mode].description}
             </p>
           </div>
 
           {mode !== 'reset-password' && (
+            <div className="grid w-full grid-cols-2 gap-2 rounded-lg border border-border bg-muted/20 p-1">
+              <Button
+                type="button"
+                variant={authMethod === 'email' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => switchAuthMethod('email')}
+                className="h-10 w-full justify-center"
+              >
+                <LogIn className="mr-2 h-4 w-4" />
+                Email
+              </Button>
+              <Button
+                type="button"
+                variant={authMethod === 'phone' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => switchAuthMethod('phone')}
+                className="h-10 w-full justify-center"
+              >
+                <Smartphone className="mr-2 h-4 w-4" />
+                Phone
+              </Button>
+            </div>
+          )}
+
+          {mode !== 'reset-password' && authMethod === 'email' && (
             <div className="grid w-full grid-cols-2 gap-2 rounded-lg border border-border bg-muted/40 p-1">
               <Button
                 type="button"
@@ -266,7 +355,23 @@ const AuthPage = () => {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {mode === 'sign-up' && (
+          {authMethod === 'phone' && (
+            <div className="space-y-2">
+              <Label htmlFor="phoneDisplayName">Display name</Label>
+              <Input
+                id="phoneDisplayName"
+                name="displayName"
+                type="text"
+                value={formData.displayName}
+                onChange={handleChange}
+                placeholder="Enter your display name"
+                minLength={2}
+                required
+              />
+            </div>
+          )}
+
+          {mode === 'sign-up' && authMethod === 'email' && (
             <div className="space-y-2">
               <Label htmlFor="displayName">Display name</Label>
               <Input
@@ -282,7 +387,37 @@ const AuthPage = () => {
             </div>
           )}
 
-          {mode !== 'reset-password' && (
+          {authMethod === 'phone' ? (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="phone">Phone number</Label>
+                <Input
+                  id="phone"
+                  name="phone"
+                  type="tel"
+                  value={formData.phone}
+                  onChange={handleChange}
+                  placeholder="+15551234567"
+                  autoComplete="tel"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="phoneOtp">SMS code</Label>
+                <Input
+                  id="phoneOtp"
+                  name="phoneOtp"
+                  type="text"
+                  inputMode="numeric"
+                  value={formData.phoneOtp}
+                  onChange={handleChange}
+                  placeholder="Enter OTP after receiving it"
+                />
+              </div>
+            </>
+          ) : (
+          mode !== 'reset-password' && (
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -295,9 +430,9 @@ const AuthPage = () => {
                 required
               />
             </div>
-          )}
+          ))}
 
-          {mode !== 'forgot-password' && (
+          {authMethod === 'email' && mode !== 'forgot-password' && (
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
               <Input
@@ -332,7 +467,11 @@ const AuthPage = () => {
           <Button type="submit" className="w-full" disabled={isSubmitting}>
             {isSubmitting
               ? 'Please wait...'
-              : mode === 'sign-in'
+              : authMethod === 'phone'
+                ? formData.phoneOtp
+                  ? 'Verify phone code'
+                  : 'Send phone code'
+                : mode === 'sign-in'
                 ? 'Sign in'
                 : mode === 'sign-up'
                   ? 'Create account'
@@ -341,7 +480,7 @@ const AuthPage = () => {
                     : 'Update password'}
           </Button>
 
-          {mode === 'sign-in' && (
+          {mode === 'sign-in' && authMethod === 'email' && (
             <Button
               type="button"
               variant="ghost"
@@ -353,7 +492,7 @@ const AuthPage = () => {
             </Button>
           )}
 
-          {mode === 'forgot-password' && (
+          {mode === 'forgot-password' && authMethod === 'email' && (
             <Button
               type="button"
               variant="ghost"
@@ -362,6 +501,12 @@ const AuthPage = () => {
             >
               Back to sign in
             </Button>
+          )}
+
+          {authMethod === 'phone' && (
+            <p className="text-xs text-muted-foreground">
+              Phone OTP requires Supabase Phone Auth and an SMS provider to be enabled in your Supabase project.
+            </p>
           )}
         </form>
       </div>

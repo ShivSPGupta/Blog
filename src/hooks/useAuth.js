@@ -58,7 +58,8 @@ async function hydrateProfile(user) {
     setState({ profile });
     return profile;
   } catch {
-    if (!user.email) {
+    const fallbackIdentity = user.email || user.phone;
+    if (!fallbackIdentity) {
       setState({ profile: null });
       return null;
     }
@@ -66,7 +67,11 @@ async function hydrateProfile(user) {
     const profile = await upsertProfile({
       id: user.id,
       email: user.email,
-      displayName: user.user_metadata?.display_name || user.email.split('@')[0] || 'Author',
+      displayName:
+        user.user_metadata?.display_name
+        || user.email?.split('@')[0]
+        || user.phone
+        || 'Author',
     });
 
     setState({ profile });
@@ -162,6 +167,56 @@ export async function requestPasswordReset(email) {
   if (error) {
     throw new Error(error.message);
   }
+}
+
+export async function sendPhoneOtp({ phone }) {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    throw new Error('Supabase auth is not configured');
+  }
+
+  const { data, error } = await supabase.auth.signInWithOtp({
+    phone,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data;
+}
+
+export async function verifyPhoneOtp({ phone, token, displayName }) {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    throw new Error('Supabase auth is not configured');
+  }
+
+  const { data, error } = await supabase.auth.verifyOtp({
+    phone,
+    token,
+    type: 'sms',
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (data.user) {
+    const profile = await upsertProfile({
+      id: data.user.id,
+      email: data.user.email,
+      displayName:
+        displayName?.trim()
+        || data.user.user_metadata?.display_name
+        || data.user.phone
+        || 'Author',
+    });
+
+    setState({ profile });
+  }
+
+  return data;
 }
 
 export async function updatePassword(password) {
@@ -267,6 +322,8 @@ export function useAuth() {
     signInWithPassword,
     signUpWithPassword,
     requestPasswordReset,
+    sendPhoneOtp,
+    verifyPhoneOtp,
     updatePassword,
     signOut,
     saveProfile,
